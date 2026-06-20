@@ -18,7 +18,7 @@ class WorkWithUsSignup extends StatefulWidget {
 }
 
 class _WorkWithUsSignupState extends State<WorkWithUsSignup> {
-  int _step = 0; // 0=Partner Type, 1=Basic Info, 2=Detailed Form
+  int _step = 0;
 
   final _step1Key = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
@@ -31,6 +31,8 @@ class _WorkWithUsSignupState extends State<WorkWithUsSignup> {
   final _cityCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   bool _obscurePassword = true;
+
+  int _passwordScore = 0;
 
   String? _selectedRole;
 
@@ -147,6 +149,170 @@ class _WorkWithUsSignupState extends State<WorkWithUsSignup> {
       'color': Color(0xFFEF4444),
     },
   ];
+
+  // ── Password strength helpers ──────────────────────────────────────────────
+
+  static const _pwChecks = [
+    _PwCheck(label: 'At least 8 characters', icon: Icons.straighten_rounded),
+    _PwCheck(label: 'One uppercase letter (A–Z)', icon: Icons.text_fields_rounded),
+    _PwCheck(label: 'One number (0–9)', icon: Icons.pin_rounded),
+    _PwCheck(label: 'One special character (!@#\$…)', icon: Icons.auto_awesome_rounded),
+  ];
+
+  List<bool> _evalPassword(String v) => [
+        v.length >= 8,
+        v.contains(RegExp(r'[A-Z]')),
+        v.contains(RegExp(r'[0-9]')),
+        v.contains(RegExp(r'[^A-Za-z0-9]')),
+      ];
+
+  void _onPasswordChanged(String v) {
+    final results = _evalPassword(v);
+    setState(() => _passwordScore = results.where((r) => r).length);
+  }
+
+  Color _strengthColor(int score) {
+    switch (score) {
+      case 1: return const Color(0xFFE24B4A);
+      case 2: return const Color(0xFFEF9F27);
+      case 3: return const Color(0xFF639922);
+      case 4: return const Color(0xFF1D9E75);
+      default: return const Color(0xFFE2E8F0);
+    }
+  }
+
+  String _strengthLabel(int score) {
+    switch (score) {
+      case 1: return 'Weak';
+      case 2: return 'Fair';
+      case 3: return 'Good';
+      case 4: return 'Strong';
+      default: return '';
+    }
+  }
+
+  // ── Password strength widget ───────────────────────────────────────────────
+
+  Widget _buildPasswordStrength() {
+    final v = _passwordCtrl.text;
+    if (v.isEmpty) return const SizedBox.shrink();
+
+    final results = _evalPassword(v);
+    final score = results.where((r) => r).length;
+    final color = _strengthColor(score);
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
+          Row(
+            children: List.generate(4, (i) {
+              final filled = i < score;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: i < 3 ? 5 : 0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: filled ? 1.0 : 0.0),
+                      duration: Duration(milliseconds: 300 + i * 60),
+                      curve: Curves.easeOut,
+                      builder: (_, val, __) => Stack(
+                        children: [
+                          Container(
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                          FractionallySizedBox(
+                            widthFactor: val,
+                            child: Container(
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  _strengthLabel(score),
+                  key: ValueKey(score),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ),
+              Text(
+                '$score/4 requirements met',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...List.generate(_pwChecks.length, (i) {
+            final met = results[i];
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(bottom: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: met
+                    ? const Color(0xFF1D9E75).withValues(alpha: 0.07)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: met
+                      ? const Color(0xFF1D9E75).withValues(alpha: 0.25)
+                      : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    met ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    size: 14,
+                    color: met ? const Color(0xFF1D9E75) : const Color(0xFFCBD5E1),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _pwChecks[i].label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: met ? const Color(0xFF1D9E75) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
 
   @override
   void dispose() {
@@ -691,14 +857,18 @@ class _WorkWithUsSignupState extends State<WorkWithUsSignup> {
                 return null;
               }),
           const SizedBox(height: 14),
+          // ── Password field with strength indicator ──────────────────────
           TextFormField(
             controller: _passwordCtrl,
             obscureText: _obscurePassword,
+            onChanged: _onPasswordChanged,
             decoration: InputDecoration(
               labelText: 'Create Password',
               prefixIcon: const Icon(Icons.lock_outline_rounded),
               suffixIcon: IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                icon: Icon(_obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined),
                 onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -707,10 +877,13 @@ class _WorkWithUsSignupState extends State<WorkWithUsSignup> {
             ),
             validator: (v) {
               if (v == null || v.isEmpty) return 'Password is required';
-              if (v.length < 6) return 'Password must be at least 6 characters';
+              if (v.length < 8) return 'Password must be at least 8 characters';
+              if (_passwordScore < 3) return 'Password is not secure enough';
               return null;
             },
           ),
+          _buildPasswordStrength(),
+          // ───────────────────────────────────────────────────────────────
           const SizedBox(height: 14),
           _inputField(_cityCtrl, 'City', Icons.location_city_outlined,
               validator: (v) => v == null || v.isEmpty ? 'City is required' : null),
@@ -1136,7 +1309,6 @@ class _WorkWithUsSignupState extends State<WorkWithUsSignup> {
       ],
     );
   }
-
 
   Widget _stepTitle(String title, String subtitle) {
     return Column(
@@ -1611,6 +1783,16 @@ class _WorkWithUsSignupState extends State<WorkWithUsSignup> {
     );
   }
 }
+
+// ── Password check data class ──────────────────────────────────────────────────
+
+class _PwCheck {
+  final String label;
+  final IconData icon;
+  const _PwCheck({required this.label, required this.icon});
+}
+
+// ── Step indicator ─────────────────────────────────────────────────────────────
 
 class _StepIndicator extends StatelessWidget {
   final int currentStep;
