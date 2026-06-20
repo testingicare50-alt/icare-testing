@@ -52,16 +52,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   bool rememberMe = false;
   bool isLogin = true;
+  // bool isLogin = true; // signup toggle removed — always login
   bool isLoading = false;
   bool agreedToTerms = false;
   String selectedSignupRole = 'Patient';
 
-  // Biometric state
   bool _biometricAvailable = false;
   bool _biometricEnabled = false;
   bool _biometricLoading = false;
 
-  // Social sign-in state
   bool _googleLoading = false;
   bool _appleLoading = false;
 
@@ -104,16 +103,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Future<void> _checkExistingRole() async {
     final authState = ref.read(authProvider);
     final existingRole = authState.userRole;
-
-    // If user has a role saved, skip to login directly
     if (existingRole.isNotEmpty) {
       setState(() {
-        isLogin = true; // Force login mode
+        isLogin = true;
       });
     }
   }
-
-  // ── Biometric helpers ────────────────────────────────────────────────────
 
   Future<void> _initBiometrics() async {
     final available = await _biometricService.isAvailable();
@@ -123,16 +118,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       _biometricAvailable = available;
       _biometricEnabled = enabled;
     });
-    // Auto-trigger biometric prompt if enabled and user has a saved token
     if (available && enabled) {
-      // Small delay so the screen renders first
       await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) _triggerBiometricLogin();
     }
   }
 
-  /// Called automatically on app open when biometrics are enabled,
-  /// or when the user taps the fingerprint button.
   Future<void> _triggerBiometricLogin() async {
     if (_biometricLoading) return;
     setState(() => _biometricLoading = true);
@@ -147,7 +138,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
       switch (result) {
         case BiometricResult.success:
-          // Use persistent biometric token (survives logout)
           final token = await SharedPref().getBiometricToken();
           if (token != null && token.isNotEmpty) {
             final user = await SharedPref().getBiometricUserData();
@@ -170,7 +160,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           break;
         case BiometricResult.cancelled:
         case BiometricResult.failed:
-          // User dismissed — do nothing
           break;
       }
     } catch (e) {
@@ -236,16 +225,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  /// After a successful password login, offer to enable biometrics.
   Future<void> _offerBiometricSetup(String email) async {
     if (!_biometricAvailable) return;
-    // Check if biometrics are already set up for THIS specific user
     final savedEmail = await _biometricService.getBiometricEmail();
     if (_biometricEnabled && savedEmail == email) return;
     final label = await _biometricService.getBiometricLabel();
     if (!mounted) return;
 
-    // await so navigation to dashboard waits until user responds
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -282,7 +268,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () async {
-              // Save token+user BEFORE closing dialog to avoid race condition
               final token = await SharedPref().getToken();
               final user = await SharedPref().getUserData();
               await _biometricService.enableBiometrics(
@@ -307,132 +292,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  List<Widget> _buildDynamicFields({bool isMobile = false}) {
-    if (isLogin) return [];
-
-    List<Widget> fields = [];
-
-    Widget buildField(
-      String hintText,
-      IconData icon,
-      TextEditingController controller,
-    ) {
-      return Padding(
-        padding: EdgeInsets.only(top: isMobile ? 5.0 : 16.0),
-        child: CustomInputField(
-          hintText: hintText,
-          leadingIcon: Icon(
-            icon,
-            color: isMobile ? AppColors.primary500 : const Color(0xFF94A3B8),
-            size: 22,
-          ),
-          controller: controller,
-          bgColor: isMobile ? AppColors.white : const Color(0xFFF8FAFC),
-          borderRadius: isMobile ? 30 : 14,
-          borderColor: isMobile
-              ? AppColors.veryLightGrey
-              : const Color(0xFFE2E8F0),
-          borderWidth: isMobile ? 2 : 1.5,
-          validator: (val) {
-            if (val == null || val.isEmpty) return "Required";
-            return null;
-          },
-        ),
-      );
-    }
-
-    switch (selectedSignupRole) {
-      case 'Doctor':
-        fields.add(
-          buildField(
-            isMobile ? "License No." : "Medical License Number",
-            Icons.badge_outlined,
-            licenseController,
-          ),
-        );
-        fields.add(
-          buildField(
-            "Credentials (e.g. MBBS, MD)",
-            Icons.school_outlined,
-            credentialsController,
-          ),
-        );
-        fields.add(
-          buildField(
-            "City / Location",
-            Icons.location_on_outlined,
-            locationController,
-          ),
-        );
-        break;
-      case 'Pharmacy':
-        fields.add(
-          buildField(
-            "Pharmacy / Organization Name",
-            Icons.local_pharmacy_outlined,
-            orgNameController,
-          ),
-        );
-        fields.add(
-          buildField("License Number", Icons.badge_outlined, licenseController),
-        );
-        fields.add(
-          buildField(
-            "City / Location",
-            Icons.location_on_outlined,
-            locationController,
-          ),
-        );
-        break;
-      case 'Laboratory':
-        fields.add(
-          buildField(
-            "Lab / Organization Name",
-            Icons.biotech_outlined,
-            orgNameController,
-          ),
-        );
-        fields.add(
-          buildField("License Number", Icons.badge_outlined, licenseController),
-        );
-        fields.add(
-          buildField(
-            "City / Location",
-            Icons.location_on_outlined,
-            locationController,
-          ),
-        );
-        break;
-      case 'Instructor':
-        fields.add(
-          buildField(
-            "Credentials / Qualifications",
-            Icons.school_outlined,
-            credentialsController,
-          ),
-        );
-        fields.add(
-          buildField(
-            "Organization / Institution",
-            Icons.business_outlined,
-            orgNameController,
-          ),
-        );
-        break;
-      case 'Student':
-        fields.add(
-          buildField(
-            "Institution / University",
-            Icons.school_outlined,
-            orgNameController,
-          ),
-        );
-        break;
-      // Patient: no extra fields needed
-    }
-
-    return fields;
-  }
+  // ── _buildDynamicFields kept but only used if signup is re-enabled ───────
+  // List<Widget> _buildDynamicFields({bool isMobile = false}) { ... }
 
   @override
   Widget build(BuildContext context) {
@@ -456,9 +317,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       height: screenHeight,
       child: Row(
         children: [
-          // ══════════════════════════════════════════════════════════════
-          // LEFT HERO PANEL — healthcare branding + trust indicators
-          // ══════════════════════════════════════════════════════════════
           Expanded(
             flex: 5,
             child: Container(
@@ -492,7 +350,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       ),
                     ),
                   ),
-                  // Back to Home button
                   Positioned(
                     top: 24, left: 24,
                     child: GestureDetector(
@@ -542,13 +399,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             ),
                           ),
                           const SizedBox(height: 16),
-                          // "by" text only
                           const Text(
                             "by",
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white70),
                           ),
                           const SizedBox(height: 10),
-                          // RM Health Solutions logo below "by"
                           Container(
                             height: 44,
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -585,7 +440,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Left Column - 2 items
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,7 +452,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 ),
                               ),
                               const SizedBox(width: 20),
-                              // Right Column - 2 items
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,9 +474,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           ),
 
-          // ══════════════════════════════════════════════════════════════
-          // RIGHT FORM PANEL
-          // ══════════════════════════════════════════════════════════════
           Expanded(
             flex: 5,
             child: Container(
@@ -657,137 +507,91 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Login / Signup Toggle
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          padding: const EdgeInsets.all(4),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => setState(() => isLogin = true),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    curve: Curves.easeInOut,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF0036BC), Color(0xFF035BE5)],
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: isLogin
-                                          ? AppColors.primaryColor
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(13),
-                                      boxShadow: isLogin
-                                          ? [
-                                              BoxShadow(
-                                                color: AppColors.primaryColor
-                                                    .withValues(alpha: 0.3),
-                                                blurRadius: 12,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ]
-                                          : [],
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        "Login",
-                                        style: TextStyle(
-                                          color: isLogin
-                                              ? Colors.white
-                                              : const Color(0xFF64748B),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15,
-                                          fontFamily: "Gilroy-Bold",
-                                        ),
-                                      ),
-                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  "Welcome back",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0036BC),
+                                    fontFamily: "Gilroy-Medium",
+                                    letterSpacing: 0.3,
                                   ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              "Sign in to\nyour account",
+                              style: TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0B2D6E),
+                                fontFamily: "Gilroy-Bold",
+                                letterSpacing: -1.0,
+                                height: 1.1,
                               ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => setState(() => isLogin = false),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    curve: Curves.easeInOut,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF0036BC), Color(0xFF035BE5)],
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: !isLogin
-                                          ? AppColors.primaryColor
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(13),
-                                      boxShadow: !isLogin
-                                          ? [
-                                              BoxShadow(
-                                                color: AppColors.primaryColor
-                                                    .withValues(alpha: 0.3),
-                                                blurRadius: 12,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ]
-                                          : [],
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        "Sign Up",
-                                        style: TextStyle(
-                                          color: !isLogin
-                                              ? Colors.white
-                                              : const Color(0xFF64748B),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15,
-                                          fontFamily: "Gilroy-Bold",
-                                        ),
-                                      ),
-                                    ),
+                                    borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  width: 8,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF035BE5).withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              "Access your health dashboard securely".tr(),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w400,
+                                color: Color(0xFF94A3B8),
+                                fontFamily: "Gilroy-Medium",
+                                height: 1.5,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 32),
 
-                        // Welcome Text
-                        Text(
-                          isLogin ? "Welcome Back!".tr() : "Create Your Account".tr(),
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0B2D6E),
-                            fontFamily: "Gilroy-Bold",
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          isLogin
-                              ? "Access your health dashboard securely".tr()
-                              : "Join iCare for a better healthcare experience".tr(),
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[500],
-                            fontFamily: "Gilroy-Medium",
-                          ),
-                        ),
-                        const SizedBox(height: 36),
-
-                        // Form
                         Form(
                           key: _formKey,
                           child: Column(
                             children: [
-                              // Username field (always shown)
                               CustomInputField(
-                                hintText: isLogin
-                                    ? "Username or Email".tr()
-                                    : "Full Name".tr(),
+                                hintText: "Username or Email".tr(),
                                 leadingIcon: const Icon(
                                   Icons.person_outline_rounded,
                                   color: Color(0xFF94A3B8),
@@ -805,48 +609,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   return null;
                                 },
                               ),
-                              if (!isLogin) ...[
-                                const SizedBox(height: 16),
-                                CustomInputField(
-                                  hintText: "Email Address".tr(),
-                                  leadingIcon: const Icon(
-                                    Icons.email_outlined,
-                                    color: Color(0xFF94A3B8),
-                                    size: 22,
-                                  ),
-                                  controller: emailController,
-                                  bgColor: const Color(0xFFF8FAFC),
-                                  borderRadius: 14,
-                                  borderColor: const Color(0xFFE2E8F0),
-                                  borderWidth: 1.5,
-                                  validator: (val) {
-                                    if (val == null || val.isEmpty) {
-                                      return "Please enter your email";
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                CustomInputField(
-                                  hintText: "Phone Number".tr(),
-                                  leadingIcon: const Icon(
-                                    Icons.phone_outlined,
-                                    color: Color(0xFF94A3B8),
-                                    size: 22,
-                                  ),
-                                  controller: phoneController,
-                                  bgColor: const Color(0xFFF8FAFC),
-                                  borderRadius: 14,
-                                  borderColor: const Color(0xFFE2E8F0),
-                                  borderWidth: 1.5,
-                                  validator: (val) {
-                                    if (val == null || val.isEmpty) {
-                                      return "Please enter your phone number";
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
+
+                              // ── Signup-only fields COMMENTED OUT ─────────────
+                              // if (!isLogin) ...[
+                              //   const SizedBox(height: 16),
+                              //   CustomInputField(hintText: "Email Address".tr(), ...),
+                              //   const SizedBox(height: 16),
+                              //   CustomInputField(hintText: "Phone Number".tr(), ...),
+                              // ],
+
                               const SizedBox(height: 16),
 
                               CustomInputField(
@@ -862,190 +633,89 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 borderRadius: 14,
                                 borderColor: const Color(0xFFE2E8F0),
                                 borderWidth: 1.5,
-                                textInputAction: isLogin ? TextInputAction.done : TextInputAction.next,
-                                onEditingComplete: isLogin && !isLoading ? _handleSubmit : null,
+                                textInputAction: TextInputAction.done,
+                                onEditingComplete: isLoading ? null : _handleSubmit,
                                 validator: (val) {
                                   if (val == null || val.isEmpty) {
                                     return "Please enter your password";
-                                  }
-                                  if (!isLogin && val.length < 6) {
-                                    return "Password must be at least 6 characters";
                                   }
                                   return null;
                                 },
                               ),
 
-                              if (!isLogin) ...[
-                                const SizedBox(height: 16),
-                                CustomInputField(
-                                  controller: confirmPasswordController,
-                                  hintText: "Confirm Password".tr(),
-                                  leadingIcon: const Icon(
-                                    Icons.lock_outline_rounded,
-                                    color: Color(0xFF94A3B8),
-                                    size: 22,
-                                  ),
-                                  isPassword: true,
-                                  bgColor: const Color(0xFFF8FAFC),
-                                  borderRadius: 14,
-                                  borderColor: const Color(0xFFE2E8F0),
-                                  borderWidth: 1.5,
-                                  validator: (val) {
-                                    if (val == null || val.isEmpty) {
-                                      return "Please confirm your password";
-                                    } else if (val !=
-                                        passwordController.text.trim()) {
-                                      return "Passwords do not match";
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: Checkbox(
-                                        value: agreedToTerms,
-                                        onChanged: (val) {
-                                          setState(() => agreedToTerms = val!);
-                                        },
-                                        activeColor: AppColors.primaryColor,
-                                        checkColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(5),
-                                        ),
-                                        side: const BorderSide(
-                                          color: Color(0xFFCBD5E1),
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: RichText(
-                                        text: TextSpan(
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF64748B),
-                                            fontFamily: "Gilroy-Medium",
-                                          ),
-                                          children: [
-                                            const TextSpan(text: "I agree to the "),
-                                            TextSpan(
-                                              text: "Terms & Conditions",
-                                              style: const TextStyle(
-                                                color: AppColors.primaryColor,
-                                                fontWeight: FontWeight.w600,
-                                                decoration: TextDecoration.underline,
-                                              ),
-                                              recognizer: TapGestureRecognizer()
-                                                ..onTap = () {
-                                                  Navigator.of(context).push(
-                                                    MaterialPageRoute(
-                                                      builder: (ctx) => const PrivacyPolicy(),
-                                                    ),
-                                                  );
-                                                },
-                                            ),
-                                            const TextSpan(text: " and "),
-                                            TextSpan(
-                                              text: "Privacy Policy",
-                                              style: const TextStyle(
-                                                color: AppColors.primaryColor,
-                                                fontWeight: FontWeight.w600,
-                                                decoration: TextDecoration.underline,
-                                              ),
-                                              recognizer: TapGestureRecognizer()
-                                                ..onTap = () {
-                                                  Navigator.of(context).push(
-                                                    MaterialPageRoute(
-                                                      builder: (ctx) => const PrivacyPolicy(),
-                                                    ),
-                                                  );
-                                                },
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                              // ── Confirm password + terms COMMENTED OUT ────────
+                              // if (!isLogin) ...[
+                              //   const SizedBox(height: 16),
+                              //   CustomInputField(controller: confirmPasswordController, hintText: "Confirm Password".tr(), ...),
+                              //   const SizedBox(height: 16),
+                              //   Row(children: [ Checkbox agreedToTerms ... ]),
+                              // ],
 
-                              if (isLogin) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: Checkbox(
-                                            value: rememberMe,
-                                            onChanged: (val) {
-                                              setState(() => rememberMe = val!);
-                                            },
-                                            activeColor: AppColors.primaryColor,
-                                            checkColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(5),
-                                            ),
-                                            side: const BorderSide(
-                                              color: Color(0xFFCBD5E1),
-                                              width: 1.5,
-                                            ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: Checkbox(
+                                          value: rememberMe,
+                                          onChanged: (val) {
+                                            setState(() => rememberMe = val!);
+                                          },
+                                          activeColor: AppColors.primaryColor,
+                                          checkColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(5),
+                                          ),
+                                          side: const BorderSide(
+                                            color: Color(0xFFCBD5E1),
+                                            width: 1.5,
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          "Remember me".tr(),
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xFF64748B),
-                                            fontFamily: "Gilroy-Medium",
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (ctx) => ForgetPassword(),
-                                          ),
-                                        );
-                                      },
-                                      style: TextButton.styleFrom(
-                                        padding: EdgeInsets.zero,
-                                        minimumSize: const Size(0, 0),
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      child: Text(
-                                        "Forgot Password?".tr(),
-                                        style: TextStyle(
-                                          color: AppColors.primaryColor,
-                                          fontWeight: FontWeight.w600,
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        "Remember me".tr(),
+                                        style: const TextStyle(
                                           fontSize: 13,
-                                          fontFamily: "Gilroy-SemiBold",
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF64748B),
+                                          fontFamily: "Gilroy-Medium",
                                         ),
                                       ),
+                                    ],
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (ctx) => ForgetPassword(),
+                                        ),
+                                      );
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: const Size(0, 0),
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
-                                  ],
-                                ),
-                              ],
+                                    child: Text(
+                                      "Forgot Password?".tr(),
+                                      style: const TextStyle(
+                                        color: AppColors.primaryColor,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        fontFamily: "Gilroy-SemiBold",
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
 
                               const SizedBox(height: 28),
 
-                              // Sign In / Sign Up Button
                               SizedBox(
                                 width: double.infinity,
                                 height: 54,
@@ -1070,9 +740,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                           ),
                                         )
                                       : Text(
-                                          isLogin
-                                              ? "Sign In".tr()
-                                              : "Create Account".tr(),
+                                          "Sign In".tr(),
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 16,
@@ -1082,59 +750,73 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         ),
                                 ),
                               ),
-                              if (isLogin) ...[
-                                const SizedBox(height: 32),
-                                // Divider with text
-                                Row(
+
+                              const SizedBox(height: 20),
+                              RichText(
+                                textAlign: TextAlign.center,
+                                text: TextSpan(
+                                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontFamily: "Gilroy-Medium"),
                                   children: [
-                                    Expanded(
-                                      child: Divider(
-                                        color: Colors.grey[300],
-                                        thickness: 1,
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                      ),
-                                      child: Text(
-                                        "Or continue with".tr(),
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: "Gilroy-Medium",
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Divider(
-                                        color: Colors.grey[300],
-                                        thickness: 1,
-                                      ),
+                                    const TextSpan(text: "Don't have an account? "),
+                                    TextSpan(
+                                      text: "Sign Up",
+                                      style: const TextStyle(color: AppColors.primaryColor, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                                      recognizer: TapGestureRecognizer()..onTap = () => context.go('/signup'),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 24),
-                                _webSocialButton(
-                                  ImagePaths.google_icon,
-                                  "Continue with Google",
-                                  onTap: _handleGoogleSignIn,
-                                  isLoading: _googleLoading,
+                              ),
+                              const SizedBox(height: 10),
+                              RichText(
+                                textAlign: TextAlign.center,
+                                text: TextSpan(
+                                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontFamily: "Gilroy-Medium"),
+                                  children: [
+                                    const TextSpan(text: "Are you a healthcare provider? "),
+                                    TextSpan(
+                                      text: "Work With Us",
+                                      style: const TextStyle(color: AppColors.primaryColor, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                                      recognizer: TapGestureRecognizer()..onTap = () => context.go('/work-with-us'),
+                                    ),
+                                  ],
                                 ),
-                                // Apple Sign In: only on iOS native (Services ID not configured for web/Android)
-                                if (!kIsWeb && Platform.isIOS) ...[
-                                  const SizedBox(height: 10),
-                                  _webAppleButton(
-                                    onTap: _handleAppleSignIn,
-                                    isLoading: _appleLoading,
+                              ),
+                              const SizedBox(height: 32),
+                              Row(
+                                children: [
+                                  Expanded(child: Divider(color: Colors.grey[300], thickness: 1)),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    child: Text(
+                                      "Or continue with".tr(),
+                                      style: TextStyle(
+                                        color: Colors.grey[500],
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        fontFamily: "Gilroy-Medium",
+                                      ),
+                                    ),
                                   ),
+                                  Expanded(child: Divider(color: Colors.grey[300], thickness: 1)),
                                 ],
-                                // Biometric / Face Unlock sign-in button — show whenever hardware is available
-                                if (_biometricAvailable) ...[
-                                  const SizedBox(height: 12),
-                                  _buildBiometricButton(isDesktop: true),
-                                ],
+                              ),
+                              const SizedBox(height: 24),
+                              _webSocialButton(
+                                ImagePaths.google_icon,
+                                "Continue with Google",
+                                onTap: _handleGoogleSignIn,
+                                isLoading: _googleLoading,
+                              ),
+                              if (!kIsWeb && Platform.isIOS) ...[
+                                const SizedBox(height: 10),
+                                _webAppleButton(
+                                  onTap: _handleAppleSignIn,
+                                  isLoading: _appleLoading,
+                                ),
+                              ],
+                              if (_biometricAvailable) ...[
+                                const SizedBox(height: 12),
+                                _buildBiometricButton(isDesktop: true),
                               ],
                             ],
                           ),
@@ -1168,7 +850,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             height: isTablet
                 ? Utils.windowHeight(context) * 0.35
                 : double.infinity,
-            // color: AppColors.themeRed,
             padding: EdgeInsets.symmetric(
               horizontal: ScallingConfig.moderateScale(15),
               vertical: ScallingConfig.moderateScale(isTablet ? 12 : 80),
@@ -1186,9 +867,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   text: "Go Ahead & Set Up Your Account",
                   fontWeight: FontWeight.bold,
                   maxLines: 2,
-                  textAlign: isTablet
-                      ? TextAlign.center
-                      : TextAlign.start, // textAlign: TextAlign.center,
+                  textAlign: isTablet ? TextAlign.center : TextAlign.start,
                   width: isTablet
                       ? Utils.windowWidth(context)
                       : Utils.windowWidth(context) * 0.6,
@@ -1197,9 +876,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
                 const SizedBox(height: 3),
                 CustomText(
-                  text: isLogin
-                      ? "Sign In To Get The Best Doctor Consultation Experience"
-                      : "Sign Up To Enjoy The Best Doctor Consultation Experience",
+                  text: "Sign In To Get The Best Doctor Consultation Experience",
                   fontSize: 13,
                   textAlign: isTablet ? TextAlign.center : TextAlign.start,
                   width: isTablet
@@ -1221,8 +898,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 color: isTablet
                     ? AppColors.bgColor.withAlpha(70)
                     : AppColors.bgColor,
-                // color: AppColors.grayColor.withAlpha(60),
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(40),
                   topRight: Radius.circular(40),
                 ),
@@ -1235,157 +911,108 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      width: isTablet
-                          ? Utils.windowWidth(context) * 0.4
-                          : double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() => isLogin = true),
-                              child: Container(
-                                padding: EdgeInsets.symmetric(vertical: 17),
-                                decoration: BoxDecoration(
-                                  color: isLogin
-                                      ? AppColors.primaryColor
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(30),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF0036BC), Color(0xFF035BE5)],
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    "Login",
-                                    style: TextStyle(
-                                      color: isLogin
-                                          ? Colors.white
-                                          : Colors.black54,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 16),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              "Welcome back",
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryColor,
+                                fontFamily: "Gilroy-Medium",
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "Sign in to\nyour account",
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0B2D6E),
+                            fontFamily: "Gilroy-Bold",
+                            letterSpacing: -0.8,
+                            height: 1.1,
                           ),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() => isLogin = false),
-                              child: Container(
-                                padding: EdgeInsets.symmetric(vertical: 15),
-                                decoration: BoxDecoration(
-                                  color: !isLogin
-                                      ? AppColors.primaryColor
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(30),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF0036BC), Color(0xFF035BE5)],
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    "Sign up",
-                                    style: TextStyle(
-                                      color: !isLogin
-                                          ? Colors.white
-                                          : Colors.black54,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
+                                borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 5),
+                            Container(
+                              width: 6,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF035BE5).withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
 
-                    SizedBox(height: 25),
+                    const SizedBox(height: 25),
 
-                    /// FORM FIELDS
                     Form(
                       key: _formKey,
                       child: Column(
                         children: [
-                          if (!isLogin)
-                            CustomInputField(
-                              hintText: "Username or Email",
-                              leadingIcon: Icon(
-                                Icons.person_outline,
-                                color: AppColors.primary500,
-                              ),
-                              controller: usernameController,
-                              bgColor: AppColors.white,
-                              borderRadius: 30,
-                              borderColor: AppColors.veryLightGrey,
-                              borderWidth: 2,
-                              validator: (val) {
-                                if (val == null || val.isEmpty) {
-                                  return "Please enter your username";
-                                }
-                                return null;
-                              },
+                          // ── Signup-only username field COMMENTED OUT ──────
+                          // if (!isLogin)
+                          //   CustomInputField(hintText: "Username or Email", ...),
+                          // if (!isLogin) SizedBox(height: 5),
+                          // if (!isLogin)
+                          //   CustomInputField(hintText: "Email Address".tr(), ...),
+                          // if (!isLogin) SizedBox(height: 5),
+                          // if (!isLogin)
+                          //   CustomInputField(hintText: "Phone Number".tr(), ...),
+                          // SizedBox(height: 5),
+
+                          CustomInputField(
+                            hintText: "Username or Email",
+                            leadingIcon: Icon(
+                              Icons.person_outline,
+                              color: AppColors.primary500,
                             ),
-                          if (!isLogin) SizedBox(height: 5),
-                          if (!isLogin)
-                            CustomInputField(
-                              hintText: "Email Address".tr(),
-                              leadingIcon: Icon(
-                                Icons.email_outlined,
-                                color: AppColors.primary500,
-                              ),
-                              controller: emailController,
-                              bgColor: AppColors.white,
-                              borderRadius: 30,
-                              borderColor: AppColors.veryLightGrey,
-                              borderWidth: 2,
-                              validator: (val) {
-                                if (val == null || val.isEmpty) {
-                                  return "Please enter your email";
-                                }
-                                return null;
-                              },
-                            ),
-                          if (!isLogin) SizedBox(height: 5),
-                          if (!isLogin)
-                            CustomInputField(
-                              hintText: "Phone Number".tr(),
-                              leadingIcon: Icon(
-                                Icons.phone_outlined,
-                                color: AppColors.primary500,
-                              ),
-                              controller: phoneController,
-                              bgColor: AppColors.white,
-                              borderRadius: 30,
-                              borderColor: AppColors.veryLightGrey,
-                              borderWidth: 2,
-                              validator: (val) {
-                                if (val == null || val.isEmpty) {
-                                  return "Please enter your phone number";
-                                }
-                                return null;
-                              },
-                            ),
-                          SizedBox(height: 5),
-                          if (isLogin)
-                            CustomInputField(
-                              hintText: "Username or Email",
-                              leadingIcon: Icon(
-                                Icons.person_outline,
-                                color: AppColors.primary500,
-                              ),
-                              controller: usernameController,
-                              bgColor: AppColors.white,
-                              borderRadius: 30,
-                              borderColor: AppColors.veryLightGrey,
-                              borderWidth: 2,
-                              validator: (val) {
-                                if (val == null || val.isEmpty) {
-                                  return "Please enter your username";
-                                }
-                                return null;
-                              },
-                            ),
-                          SizedBox(height: 5),
+                            controller: usernameController,
+                            bgColor: AppColors.white,
+                            borderRadius: 30,
+                            borderColor: AppColors.veryLightGrey,
+                            borderWidth: 2,
+                            validator: (val) {
+                              if (val == null || val.isEmpty) {
+                                return "Please enter your username";
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 5),
 
                           CustomInputField(
                             hintText: "Enter Your Password".tr(),
@@ -1399,175 +1026,76 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             borderRadius: 30,
                             borderColor: AppColors.veryLightGrey,
                             borderWidth: 2,
-                            textInputAction: isLogin ? TextInputAction.done : TextInputAction.next,
-                            onEditingComplete: isLogin && !isLoading ? _handleSubmit : null,
+                            textInputAction: TextInputAction.done,
+                            onEditingComplete: isLoading ? null : _handleSubmit,
                             validator: (val) {
                               if (val == null || val.isEmpty) {
                                 return "Please enter your password";
-                              }
-                              if (!isLogin && val.length < 6) {
-                                return "Password must be at least 6 characters";
                               }
                               return null;
                             },
                           ),
 
-                          if (!isLogin) ...[
-                            SizedBox(height: 5),
-                            CustomInputField(
-                              controller: confirmPasswordController,
-                              hintText: "Confirm Password".tr(),
-                              leadingIcon: Icon(
-                                Icons.key,
-                                color: AppColors.primary500,
-                              ),
-                              isPassword: true,
-                              bgColor: AppColors.white,
-                              borderRadius: 30,
-                              borderColor: AppColors.veryLightGrey,
-                              borderWidth: 2,
-                              validator: (val) {
-                                if (val == null || val.isEmpty) {
-                                  return "Please confirm your password";
-                                } else if (val !=
-                                    passwordController.text.trim()) {
-                                  return "Passwords do not match";
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: Checkbox(
-                                    value: agreedToTerms,
+                          // ── Confirm password + terms COMMENTED OUT ────────
+                          // if (!isLogin) ...[
+                          //   SizedBox(height: 5),
+                          //   CustomInputField(controller: confirmPasswordController, hintText: "Confirm Password".tr(), ...),
+                          //   const SizedBox(height: 12),
+                          //   Row(children: [ Checkbox agreedToTerms ... ]),
+                          // ],
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Checkbox(
+                                    value: rememberMe,
                                     onChanged: (val) {
-                                      setState(() => agreedToTerms = val!);
+                                      setState(() => rememberMe = val!);
                                     },
                                     activeColor: AppColors.primary500,
                                     checkColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(5),
-                                    ),
-                                    side: const BorderSide(
-                                      color: Color(0xFFCBD5E1),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: RichText(
-                                    text: TextSpan(
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF64748B),
-                                        fontFamily: "Gilroy-Medium",
-                                      ),
-                                      children: [
-                                        const TextSpan(text: "I agree to the "),
-                                        TextSpan(
-                                          text: "Terms & Conditions",
-                                          style: const TextStyle(
-                                            color: AppColors.primaryColor,
-                                            fontWeight: FontWeight.w600,
-                                            decoration: TextDecoration.underline,
-                                          ),
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (ctx) => const PrivacyPolicy(),
-                                                ),
-                                              );
-                                            },
-                                        ),
-                                        const TextSpan(text: " and "),
-                                        TextSpan(
-                                          text: "Privacy Policy",
-                                          style: const TextStyle(
-                                            color: AppColors.primaryColor,
-                                            fontWeight: FontWeight.w600,
-                                            decoration: TextDecoration.underline,
-                                          ),
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (ctx) => const PrivacyPolicy(),
-                                                ),
-                                              );
-                                            },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-
-                          if (isLogin) ...[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Checkbox(
-                                      value: rememberMe,
-                                      onChanged: (val) {
-                                        setState(() => rememberMe = val!);
-                                      },
-                                      activeColor: AppColors.primary500,
-                                      checkColor: Colors.white,
-                                      side: BorderSide(
-                                        color: isTablet
-                                            ? AppColors.white
-                                            : AppColors.lightGrey200,
-                                        width: 2,
-                                      ),
-                                    ),
-                                    CustomText(
-                                      text: "Remember me".tr(),
-                                      fontSize: isTablet ? 12 : 15,
+                                    side: BorderSide(
                                       color: isTablet
                                           ? AppColors.white
                                           : AppColors.lightGrey200,
-                                    ),
-                                  ],
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (ctx) => ForgetPassword(),
-                                      ),
-                                    );
-                                  },
-                                  child: Text(
-                                    "Forgot Password",
-                                    style: TextStyle(
-                                      color: isTablet
-                                          ? AppColors.white
-                                          : AppColors.primaryColor,
+                                      width: 2,
                                     ),
                                   ),
+                                  CustomText(
+                                    text: "Remember me".tr(),
+                                    fontSize: isTablet ? 12 : 15,
+                                    color: isTablet
+                                        ? AppColors.white
+                                        : AppColors.lightGrey200,
+                                  ),
+                                ],
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (ctx) => ForgetPassword(),
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  "Forgot Password",
+                                  style: TextStyle(
+                                    color: isTablet
+                                        ? AppColors.white
+                                        : AppColors.primaryColor,
+                                  ),
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
 
-                          if (isLogin) ...[
-                            SizedBox(height: 10),
-                          ] else ...[
-                            SizedBox(height: 80),
-                          ],
+                          const SizedBox(height: 10),
+
                           SizedBox(
                             width: double.infinity,
                             height: 60,
@@ -1589,7 +1117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                       ),
                                     )
                                   : Text(
-                                      isLogin ? "Sign In".tr() : "Sign Up".tr(),
+                                      "Sign In".tr(),
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 16,
@@ -1597,7 +1125,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     ),
                             ),
                           ),
-                          if (isLogin) _buildMobileSocialRow(),
+                          const SizedBox(height: 16),
+                          RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontFamily: "Gilroy-Medium"),
+                              children: [
+                                const TextSpan(text: "Don't have an account? "),
+                                TextSpan(
+                                  text: "Sign Up",
+                                  style: const TextStyle(color: AppColors.primaryColor, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                                  recognizer: TapGestureRecognizer()..onTap = () => context.go('/signup'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontFamily: "Gilroy-Medium"),
+                              children: [
+                                const TextSpan(text: "Are you a healthcare provider? "),
+                                TextSpan(
+                                  text: "Work With Us",
+                                  style: const TextStyle(color: AppColors.primaryColor, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                                  recognizer: TapGestureRecognizer()..onTap = () => context.go('/work-with-us'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          _buildMobileSocialRow(),
                         ],
                       ),
                     ),
@@ -1606,7 +1164,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ),
           ),
-          // Home button for mobile
           Positioned(
             top: MediaQuery.of(context).padding.top + 12,
             left: 16,
@@ -1617,7 +1174,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6)],
+                  boxShadow: [const BoxShadow(color: Colors.black12, blurRadius: 6)],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1693,14 +1250,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           children: [
             _socialButton(ImagePaths.google_icon, "Google",
                 onTap: _handleGoogleSignIn, isLoading: _googleLoading),
-            // Apple Sign In: only on iOS native (Services ID not configured for web/Android)
             if (!kIsWeb && Platform.isIOS) ...[
               const SizedBox(width: 12),
               _mobileAppleButton(onTap: _handleAppleSignIn, isLoading: _appleLoading),
             ],
           ],
         ),
-        // Biometric / Face Unlock sign-in button — show whenever hardware is available
         if (_biometricAvailable) ...[
           const SizedBox(height: 12),
           _buildBiometricButton(isDesktop: false),
@@ -1747,7 +1302,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           );
         }
-        // Mobile
         return GestureDetector(
           onTap: _biometricLoading ? null : _triggerBiometricLogin,
           child: Container(
@@ -1930,152 +1484,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   void _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
-    // Terms & Conditions check for signup
-    if (!isLogin && !agreedToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please agree to the Terms & Conditions to continue.'.tr()),
-          backgroundColor: const Color(0xFFEF4444),
-        ),
-      );
-      return;
-    }
     setState(() => isLoading = true);
     try {
-      if (isLogin) {
-        debugPrint("🔐 Starting login process...");
+      debugPrint("🔐 Starting login process...");
 
-        // Login
-        final result = await _authService.login(
-          email: usernameController.text.trim(),
-          password: passwordController.text.trim(),
-        );
-        // 2FA check
-        if (result['requiresOtp'] == true) {
-          final tempToken = result['tempToken']?.toString() ?? '';
-          if (mounted) await _show2FADialog(tempToken: tempToken);
-          if (mounted) setState(() => isLoading = false);
-          return;
-        }
+      final result = await _authService.login(
+        email: usernameController.text.trim(),
+        password: passwordController.text.trim(),
+      );
 
-        if (result['success']) {
-          debugPrint("✅ Login successful, token saved");
-          debugPrint("🔍 Fetching user profile...");
+      if (result['requiresOtp'] == true) {
+        final tempToken = result['tempToken']?.toString() ?? '';
+        if (mounted) await _show2FADialog(tempToken: tempToken);
+        if (mounted) setState(() => isLoading = false);
+        return;
+      }
 
-          // Get the token from the login result
-          final token = result['data']['token'];
-          debugPrint("🔑 Token from login: ${token.substring(0, 20)}...");
+      if (result['success']) {
+        debugPrint("✅ Login successful, token saved");
+        debugPrint("🔍 Fetching user profile...");
 
-          // Fetch user profile with the token directly (don't rely on storage yet)
-          final profileResult = await _userService.getUserProfile(token: token);
+        final token = result['data']['token'];
+        debugPrint("🔑 Token from login: ${token.substring(0, 20)}...");
 
-          debugPrint("📥 Profile result: ${profileResult['success']}");
+        final profileResult = await _userService.getUserProfile(token: token);
+        debugPrint("📥 Profile result: ${profileResult['success']}");
 
-          if (profileResult['success'] && mounted) {
-            debugPrint("✅ Profile fetched successfully");
+        if (profileResult['success'] && mounted) {
+          debugPrint("✅ Profile fetched successfully");
 
-            // Store user data in provider
-            final userData = profileResult['user'];
-            debugPrint("📋 User data: $userData");
+          final userData = profileResult['user'];
+          debugPrint("📋 User data: $userData");
 
-            final user = app_user.User.fromJson(userData);
-            debugPrint(
-              "👤 User object created: ${user.name}, ${user.email}, ${user.role}",
-            );
+          final user = app_user.User.fromJson(userData);
+          debugPrint("👤 User object created: ${user.name}, ${user.email}, ${user.role}");
 
-            // Save token first and await
-            await ref
-                .read(authProvider.notifier)
-                .setUserToken(result['data']['token']);
-            debugPrint("✅ Token set in provider");
+          await ref.read(authProvider.notifier).setUserToken(result['data']['token']);
+          debugPrint("✅ Token set in provider");
 
-            // Save user and await
-            await ref.read(authProvider.notifier).setUser(user);
-            debugPrint("✅ User set in provider");
+          await ref.read(authProvider.notifier).setUser(user);
+          debugPrint("✅ User set in provider");
 
-            // Verify the role is set
-            final currentRole = ref.read(authProvider).userRole;
-            debugPrint("🔍 Current role in provider: '$currentRole'");
+          final currentRole = ref.read(authProvider).userRole;
+          debugPrint("🔍 Current role in provider: '$currentRole'");
+          debugPrint("✅ Logged in as: ${user.name} (${user.email}) - Role: ${user.role}");
 
-            debugPrint(
-              "✅ Logged in as: ${user.name} (${user.email}) - Role: ${user.role}",
-            );
+          await _offerBiometricSetup(usernameController.text.trim());
 
-            // Offer biometric setup after first successful password login
-            await _offerBiometricSetup(usernameController.text.trim());
-
-            context.go('/dashboard');
-          } else {
-            debugPrint("❌ Failed to fetch profile: ${profileResult['message']}");
-            _showError(
-              'Failed to load user profile: ${profileResult['message']}',
-            );
-          }
+          context.go('/dashboard');
         } else {
-          _showError(result['message']);
+          debugPrint("❌ Failed to fetch profile: ${profileResult['message']}");
+          _showError('Failed to load user profile: ${profileResult['message']}');
         }
       } else {
-        // Sign Up - Get role from provider
-        final selectedRole = ref.read(authProvider).userRole;
-
-        if (selectedRole.isEmpty) {
-          _showError('Please select your role first');
-          setState(() => isLoading = false);
-          return;
-        }
-
-        // Map frontend roles to backend roles
-        String backendRole = _mapRoleToBackend(selectedRole);
-
-        final result = await _authService.register(
-          name: usernameController.text.trim(),
-          email: emailController.text.trim(),
-          password: passwordController.text.trim(),
-          role: backendRole,
-          phoneNumber: phoneController.text.trim(),
-          // licenseNumber: licenseController.text.trim(),
-          // location: locationController.text.trim(),
-          // organizationName: orgNameController.text.trim(),
-          // credentials: credentialsController.text.trim(),
-        );
-        if (result['success']) {
-          // Set token in provider first and await
-          final token = result['data']['token'];
-          await ref.read(authProvider.notifier).setUserToken(token);
-
-          // Fetch user profile after registration, passing token directly
-          final profileResult = await _userService.getUserProfile(token: token);
-
-          if (profileResult['success'] && mounted) {
-            final userData = profileResult['user'];
-            final user = app_user.User.fromJson(userData);
-            await ref.read(authProvider.notifier).setUser(user);
-
-            // Redirect based on user role
-            if (user.role == 'Laboratory') {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (ctx) => const LabProfileSetup()),
-              );
-            } else if (user.role == 'Pharmacy') {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (ctx) => const PharmacyProfileSetup(),
-                ),
-              );
-            } else if (user.role == 'Student') {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (ctx) => const StudentProfileSetup(),
-                ),
-              );
-            } else {
-              context.go('/dashboard');
-            }
-          }
-        } else {
-          _showError(result['message']);
-        }
+        _showError(result['message']);
       }
+
+      // ── Signup branch COMMENTED OUT ─────────────────────────────────────
+      // } else {
+      //   final selectedRole = ref.read(authProvider).userRole;
+      //   if (selectedRole.isEmpty) { _showError('Please select your role first'); ... }
+      //   String backendRole = _mapRoleToBackend(selectedRole);
+      //   final result = await _authService.register(name: ..., email: ..., ...);
+      //   if (result['success']) { ... navigate to profile setup ... }
+      //   else { _showError(result['message']); }
+      // }
+
     } catch (e) {
       _showError('An error occurred. Please try again.');
     } finally {
@@ -2083,45 +1557,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
-  void _showApprovalDialog(String role) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Application Submitted"),
-        content: Text(
-          "Your application for the role of $role has been submitted for review. You'll be able to log in once approved.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() => isLogin = true);
-            },
-            child: const Text("Okay"),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── _showApprovalDialog kept but only used if signup is re-enabled ───────
+  // void _showApprovalDialog(String role) { ... }
 
-  String _mapRoleToBackend(String frontendRole) {
-    switch (frontendRole.toLowerCase()) {
-      case 'patient':
-        return 'Patient';
-      case 'doctor':
-        return 'Doctor';
-      case 'pharmacy':
-        return 'Pharmacy';
-      case 'laboratory':
-        return 'Laboratory';
-      case 'instructor':
-        return 'Instructor';
-      case 'student':
-        return 'Student';
-      default:
-        return 'Patient';
-    }
-  }
+  // ── _mapRoleToBackend kept but only used if signup is re-enabled ─────────
+  // String _mapRoleToBackend(String frontendRole) { ... }
 
   void _showError(dynamic error) {
     if (!mounted) return;
