@@ -1,8 +1,4 @@
 allprojects {
-    extra["compileSdkVersion"] = 36
-    extra["targetSdkVersion"] = 36
-    extra["minSdkVersion"] = 23
-
     repositories {
         google()
         mavenCentral()
@@ -11,9 +7,4 @@ allprojects {
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
-}
-
-
-subprojects {
-    evaluationDependsOn(":app")
 }

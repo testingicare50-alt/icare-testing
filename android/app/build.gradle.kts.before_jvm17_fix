@@ -5,9 +5,6 @@ plugins {
     id("com.google.gms.google-services")
 }
 
-// Redirect build output to where Flutter tooling expects it
-layout.buildDirectory.set(File(rootDir, "../build/app"))
-
 android {
     namespace = "com.example.icare"
     compileSdk = 36

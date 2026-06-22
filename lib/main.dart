@@ -26,7 +26,8 @@ void main() async {
   if (!kIsWeb) {
     // macOS does not bundle GoogleService-Info.plist via Xcode automatically,
     // so we provide explicit options as a fallback.
-    if (defaultTargetPlatform == TargetPlatform.macOS) {
+    if (defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
       await Firebase.initializeApp(
         options: const FirebaseOptions(
           apiKey: 'AIzaSyAzAiLxdhVLMYnuSH1apD6XyJ5LZXbDYDg',

@@ -14,5 +14,3 @@ org.gradle.caching=false
 # This builtInKotlin flag was added automatically by Flutter migrator
 # This builtInKotlin flag was added automatically by Flutter migrator
 # This newDsl flag was added automatically by Flutter migrator
-android.newDsl=false
-android.builtInKotlin=false
